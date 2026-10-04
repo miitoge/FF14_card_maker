@@ -2,6 +2,12 @@
 <html lang="ja"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>FF14 自己紹介カードメーカー</title>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<meta name="description" content="FF14の自己紹介カードを、表裏2面の動くカードで作れる無料ツール。ロドスト連携・動画/GIF書き出し対応。">
+<meta property="og:type" content="website"><meta property="og:title" content="FF14 自己紹介カードメーカー">
+<meta property="og:description" content="表裏2面の動くカード。ロドスト連携・動画/GIF書き出し対応の無料ツール。">
+<meta property="og:image" content="https://miitoge.github.io/FF14_card_maker/ogp.png"><meta property="og:url" content="https://miitoge.github.io/FF14_card_maker/">
+<meta name="twitter:card" content="summary_large_image">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Noto+Sans+JP:wght@400;500;700;900&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <style>
@@ -110,6 +116,9 @@ button:active{transform:scale(.97)}section.on{animation:fi .35s}
 [data-r="2"] .bd{border-color:rgba(160,220,255,.85);box-shadow:0 0 22px rgba(120,200,255,.4),inset 0 0 22px rgba(120,200,255,.2)}
 [data-r="3"] .bd{border-color:#ffe27a;animation:prism 4s linear infinite}
 .nofx *,.nofx *::before{animation:none!important}
+#vmodal{position:fixed;inset:0;background:rgba(6,7,10,.95);display:none;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:14px;z-index:9;text-align:center;color:#ccc;font-size:14px}
+#vmodal.on{display:flex}#vmodal video,#vmodal img{max-width:min(100%,900px);max-height:60vh;border-radius:6px}
+.bar.main .btn,.bar.main button:not(.pri){padding:11px 12px;font-size:13px}
 </style></head>
 <body>
 <header><h1>FF14 自己紹介カードメーカー</h1><p>表はSS、裏は詳細シート。カードにカーソルを重ねると傾き、クリックで裏返ります。データは端末の外へ送信されません。</p></header>
@@ -130,7 +139,7 @@ button:active{transform:scale(.97)}section.on{animation:fi .35s}
     <div class="face" id="back"></div>
   </div><canvas id="fx" width="1200" height="675" style="position:absolute;left:0;top:0;pointer-events:none"></canvas></div></div>
   <div class="bar"><div class="sw" id="sw"><button data-s="front">表</button><button data-s="back">裏</button></div><button id="fxb" onclick="S.fx=!S.fx;render()">演出</button><button onclick="gyro()">傾きセンサー</button></div>
-  <div class="bar main"><button class="pri" onclick="save()">画像を保存（表＋裏）</button><a class="btn" target="_blank" rel="noopener" href="https://x.com/intent/post?text=%23FF14">Xで投稿</a></div>
+  <div class="bar main"><button class="pri" onclick="save()">画像を保存</button><button onclick="makeVideo()">動画</button><button onclick="makeGif()">GIF</button><button onclick="shareLink()">共有</button><a class="btn" target="_blank" rel="noopener" href="https://x.com/intent/post?text=%23FF14">Xで投稿</a></div>
 </div>
 
 <div>
@@ -172,6 +181,8 @@ button:active{transform:scale(.97)}section.on{animation:fi .35s}
     <button style="margin-top:14px;width:100%" onclick="resetAll()">すべてリセット</button>
   </section>
 </div></div>
+<div id="toast" style="position:fixed;left:50%;top:14px;transform:translateX(-50%);background:#fff;color:#111;padding:8px 18px;border-radius:99px;font-size:14px;font-weight:700;z-index:20;display:none"></div>
+<div id="vmodal" onclick="if(event.target===this)this.classList.remove('on')"></div>
 <div id="modal" onclick="this.classList.remove('on')"><img id="o1" alt="表"><img id="o2" alt="裏"><p>長押し（PCは右クリック）で保存。タップで閉じる</p></div>
 
 <script src="config.js"></script>
@@ -222,13 +233,18 @@ function parseLode(prof,jobs,nm){
  const a=L.indexOf('自己紹介');if(a>=0){const e=L.findIndex((x,k)=>k>a&&/^(コミュニティウォール|Facebook)/.test(x)),v=L.slice(a+1,e>a?e:a+8).join('\n').slice(0,120);if(v)S.msg=v}
  syncLv();render();play();return n}
 function impPaste(){const t=$('paste').value,n=parseLode(t,t);$('imps').textContent=n?n+'ジョブのレベルを読み取りました。':'読み取れませんでした。手入力をお使いください。'}
+const PROXIES=[u=>'https://api.allorigins.win/raw?url='+encodeURIComponent(u),u=>'https://corsproxy.io/?url='+encodeURIComponent(u)];
+function strip(h){const d=new DOMParser().parseFromString(h,'text/html');d.querySelectorAll('script,style,noscript').forEach(e=>e.remove());d.querySelectorAll('br,p,div,li,tr,h1,h2,h3,h4,h5,a,span,dt,dd,td,th').forEach(e=>e.append('\n'));return d.body.textContent.replace(/[ \t]+/g,' ').replace(/\n\s*\n+/g,'\n')}
+async function viaProxy(u){for(const p of PROXIES){try{const r=await fetch(p(u));if(r.ok){const t=await r.text();if(t.length>2000)return t}}catch(e){}}throw new Error('proxy')}
 async function impID(){
  const id=($('ldu').value.match(/\d{4,}/)||[])[0],st=$('ldst'),api=typeof LODESTONE_API!=='undefined'?LODESTONE_API:'';
  if(!id){st.textContent='URL か 数字のIDを入力してください。';return}
- if(!api){st.textContent='取り込み用サーバーが未設定です。「ジョブ」タブの貼り付け方式をお使いください。';return}
- st.textContent='ロドストから取得中…';
- try{const r=await fetch(api+'?id='+id);if(!r.ok)throw new Error(r.status);const d=await r.json();const n=parseLode(d.profile,d.jobs,d.name);S.ld=id;st.textContent=n?`取り込み完了：${n}ジョブ。内容を確認して調整してください。`:'取得できましたが、ジョブ情報を読み取れませんでした。'}
- catch(e){st.textContent='取得に失敗しました（非公開キャラ／ID違い／サーバー側の制限の可能性）。貼り付け方式をお試しください。'}}
+ st.textContent='ロドストから取得中…（数秒かかります）';
+ try{let prof,jobs,name;
+  if(api){const d=await(await fetch(api+'?id='+id)).json();prof=d.profile;jobs=d.jobs;name=d.name}
+  else{const b=`https://jp.finalfantasyxiv.com/lodestone/character/${id}/`,[a,c]=await Promise.all([viaProxy(b),viaProxy(b+'class_job/')]);name=((a.match(/<title>([^<]+?)\s*\|/)||[])[1]||'').trim();prof=strip(a);jobs=strip(c)}
+  const n=parseLode(prof,jobs,name);S.ld=id;st.textContent=n?`取り込み完了：${n}ジョブ。内容を確認して調整してください。`:'取得はできましたが、ジョブ情報を読み取れませんでした。'}
+ catch(e){st.textContent='取得に失敗しました（非公開キャラ／ID違い／中継サービスの混雑の可能性）。「ジョブ」タブの貼り付け方式をお試しください。'}}
 // image
 function load(f){if(!f)return;const r=new FileReader();r.onload=()=>{const i=new Image();i.onload=()=>{IM=i;ox=oy=0;S.z=100;$('shot').src=r.result;pick();render();play()};i.src=r.result};r.readAsDataURL(f)}
 $('file').onchange=e=>load(e.target.files[0]);
@@ -285,15 +301,42 @@ function render(){
 function fit(){const s=sc();$('scaler').style.transform=`scale(${s})`;pv.style.height=675*s+'px'}
 new ResizeObserver(fit).observe(pv);
 function resetAll(){if(confirm('すべてリセットしますか？')){S=JSON.parse(JSON.stringify(DEF));syncLv();render();setSide('front')}}
-async function save(){
- try{await document.fonts.ready;const out=[];
-  for(const id of['front','back']){
-   const cv=await html2canvas($(id),{scale:2,backgroundColor:'#0d1016',width:1200,height:675,onclone:d=>{['scaler','tilt'].forEach(i=>{const e=d.getElementById(i);e.style.transform='none';e.style.transition='none'});const f=d.getElementById(id);f.style.cssText+=';transform:none;position:absolute;left:0;top:0;border-radius:0';const st=d.createElement('style');st.textContent='*{animation:none!important;transition:none!important}.gl,.holo,.sweep,#empty{display:none!important}';d.head.append(st);if(id==='front'&&!IM)f.style.background='#14171d'}});
-   out.push(cv.toDataURL('image/png'))}
-  $('o1').src=out[0];$('o2').src=out[1];$('modal').classList.add('on');
-  out.forEach((u,i)=>{try{const a=document.createElement('a');a.href=u;a.download=`ff14-card-${i?'back':'front'}.png`;a.click()}catch(e){}})
- }catch(e){alert('画像の作成に失敗しました。もう一度お試しください。')}
-}
+function toast(m,ms=2500){const t=$('toast');t.textContent=m;t.style.display='block';clearTimeout(toast.t);if(ms)toast.t=setTimeout(()=>t.style.display='none',ms)}
+async function snap(id,sc){await document.fonts.ready;return html2canvas($(id),{scale:sc,backgroundColor:'#0d1016',width:1200,height:675,onclone:d=>{['scaler','tilt'].forEach(i=>{const e=d.getElementById(i);e.style.transform='none';e.style.transition='none'});const f=d.getElementById(id);f.style.cssText+=';transform:none;position:absolute;left:0;top:0;border-radius:0';const st=d.createElement('style');st.textContent='*{animation:none!important;transition:none!important}.gl,.holo,.sweep,#empty{display:none!important}';d.head.append(st);if(id==='front'&&!IM)f.style.background='#14171d'}})}
+async function save(){try{toast('画像を作成中…',0);const out=[await snap('front',2),await snap('back',2)].map(c=>c.toDataURL('image/png'));toast('完成しました');$('o1').src=out[0];$('o2').src=out[1];$('modal').classList.add('on');out.forEach((u,i)=>{try{const a=document.createElement('a');a.href=u;a.download=`ff14-card-${i?'back':'front'}.png`;a.click()}catch(e){}})}catch(e){toast('画像の作成に失敗しました。もう一度お試しください。')}}
+const ss=(a,b,x)=>{x=Math.min(1,Math.max(0,(x-a)/(b-a)));return x*x*(3-2*x)};
+function starc(c,x,y,z){c.beginPath();for(let i=0;i<8;i++){const a=i*Math.PI/4,r=i%2?z*.2:z;c.lineTo(x+Math.cos(a)*r,y+Math.sin(a)*r)}c.closePath();c.fill()}
+function paint(cx,F,B,u,W,H){
+ const s=u<.3?0:u<.42?ss(.3,.42,u):u<.78?1:u<.9?1-ss(.78,.9,u):0,ang=s*180,sa=Math.sin(ang*Math.PI/180),a=ang*Math.PI/180,k=W/1200;
+ cx.setTransform(1,0,0,1,0,0);cx.globalCompositeOperation='source-over';cx.globalAlpha=1;cx.shadowBlur=0;cx.fillStyle='#07080b';cx.fillRect(0,0,W,H);
+ cx.save();cx.translate(W/2,H/2);cx.scale(.93,.93);cx.transform(Math.abs(Math.cos(a)),Math.sin(u*Math.PI*4)*.025*(1-sa),0,1-.05*sa,0,0);
+ cx.drawImage(ang<90?F:B,-W/2,-H/2,W,H);
+ cx.beginPath();cx.rect(-W/2,-H/2,W,H);cx.clip();
+ const p=(u*1.5)%1,x=-W/2+(p*2.2-.4)*W,g=cx.createLinearGradient(x-150*k,0,x+150*k,0);g.addColorStop(0,'rgba(255,255,255,0)');g.addColorStop(.5,'rgba(255,255,255,.2)');g.addColorStop(1,'rgba(255,255,255,0)');cx.fillStyle=g;cx.fillRect(-W/2,-H/2,W,H);
+ const R=rar();if(R>=2){const o=-W/2+((u*1.4)%1.6-.3)*W,h=cx.createLinearGradient(o-W*.4,-H/2,o+W*.4,H/2);[['rgba(255,0,140,.22)',.2],['rgba(255,230,0,.22)',.4],['rgba(0,255,200,.22)',.6],['rgba(80,120,255,.22)',.8]].forEach(([c,t])=>h.addColorStop(t,c));h.addColorStop(0,'rgba(0,0,0,0)');h.addColorStop(1,'rgba(0,0,0,0)');cx.globalCompositeOperation='screen';cx.fillStyle=h;cx.fillRect(-W/2,-H/2,W,H)}
+ cx.globalCompositeOperation='lighter';const n=[14,24,36,52][R];
+ for(let i=0;i<n;i++){const ph=(u*2+i*.137)%1,al=Math.sin(ph*Math.PI)*.9;cx.globalAlpha=al;cx.fillStyle=R>=2?`hsl(${(i*37+u*360)%360} 90% 75%)`:i%3?'#fff':ACC;starc(cx,-W/2+((i*97)%100)/100*W,-H/2+((((i*57)%100)/100)*H+H*(1-u))%H,(3+(i%5)*2.2)*k*1.4)}
+ cx.restore();cx.globalAlpha=1;cx.globalCompositeOperation='source-over'}
+async function frames(){toast('カードを準備中…',0);return{F:await snap('front',1),B:await snap('back',1)}}
+function showResult(url,kind,name,note){const v=$('vmodal');v.innerHTML=(kind==='video'?`<video src="${url}" controls loop autoplay muted playsinline></video>`:`<img src="${url}" alt="">`)+`<a class="btn pri" href="${url}" download="${name}" style="padding:12px 28px">ダウンロード</a><div>${note}</div><div style="opacity:.6">外側をタップで閉じる</div>`;v.classList.add('on');try{const a=v.querySelector('a');a.click()}catch(e){}}
+async function makeVideo(){
+ if(!window.MediaRecorder){toast('このブラウザは動画の書き出しに対応していません');return}
+ try{const{F,B}=await frames(),cv=document.createElement('canvas');cv.width=1200;cv.height=676;const cx=cv.getContext('2d');
+  const mt=['video/mp4;codecs=avc1.42E01E','video/mp4','video/webm;codecs=vp9','video/webm'].find(t=>MediaRecorder.isTypeSupported(t));
+  const rec=new MediaRecorder(cv.captureStream(30),{mimeType:mt,videoBitsPerSecond:8e6}),ch=[];rec.ondataavailable=e=>e.data.size&&ch.push(e.data);const done=new Promise(r=>rec.onstop=r);
+  rec.start();toast('録画中…（5秒）',0);const t0=performance.now();
+  await new Promise(res=>{const f=now=>{const t=(now-t0)/1000;paint(cx,F,B,(t/5)%1,1200,676);if(t<5)requestAnimationFrame(f);else res()};requestAnimationFrame(f)});
+  rec.stop();await done;const mp4=mt.startsWith('video/mp4'),url=URL.createObjectURL(new Blob(ch,{type:mt.split(';')[0]}));toast('完成しました');
+  showResult(url,'video',mp4?'ff14-card.mp4':'ff14-card.webm',mp4?'MP4です。そのままXに投稿できます。':'このブラウザはWebM形式で出力しました。Xに投稿するにはMP4への変換が必要なので、Chrome/EdgeかSafariでの書き出し、またはGIFをおすすめします。')
+ }catch(e){toast('動画の作成に失敗しました')}}
+async function makeGif(){
+ try{const{F,B}=await frames();toast('GIFを生成中…',0);const{GIFEncoder,quantize,applyPalette}=await import('https://cdn.jsdelivr.net/npm/gifenc@1.0.3/+esm');
+  const W=640,H=360,cv=document.createElement('canvas');cv.width=W;cv.height=H;const cx=cv.getContext('2d',{willReadFrequently:true}),N=50,gif=GIFEncoder();
+  for(let i=0;i<N;i++){paint(cx,F,B,i/N,W,H);const d=cx.getImageData(0,0,W,H).data,pal=quantize(d,256);gif.writeFrame(applyPalette(d,pal),W,H,{palette:pal,delay:100});toast(`GIFを生成中… ${i+1}/${N}`,0);await new Promise(r=>setTimeout(r))}
+  gif.finish();const url=URL.createObjectURL(new Blob([gif.bytes()],{type:'image/gif'}));toast('完成しました');showResult(url,'img','ff14-card.gif','GIFです。Xに投稿すると自動でループ再生されます。')
+ }catch(e){toast('GIFの作成に失敗しました（通信環境をご確認ください）')}}
+function shareLink(){const o={...S};delete o.side;const u=location.origin+location.pathname+'#c='+btoa(unescape(encodeURIComponent(JSON.stringify(o))));(navigator.clipboard?navigator.clipboard.writeText(u):Promise.reject()).then(()=>toast('共有リンクをコピーしました（SS画像は含まれません）',3500),()=>prompt('このURLをコピーしてください',u))}
+function loadHash(){try{const m=location.hash.match(/^#c=(.+)$/);if(m)S=Object.assign(S,JSON.parse(decodeURIComponent(escape(atob(m[1])))))}catch(e){}}
 let ACC='#7fb0ff',SC=null,ps=[];
 const rar=()=>{if(S.rar!=='auto')return +S.rar;const t=Object.values(S.lv).reduce((a,b)=>a+b,0);return t>=2500?3:t>=1500?2:t>=500?1:0};
 function seg2(id,items,key){items.forEach(([l,v])=>{const b=document.createElement('button');b.textContent=l;b.dataset.v=v;b.onclick=()=>{S[key]=v;render();play()};$(id).append(b)})}
@@ -314,5 +357,5 @@ function loop(){cx.clearRect(0,0,1200,675);if(S.fx){cx.globalCompositeOperation=
  requestAnimationFrame(loop)}
 async function gyro(){try{if(window.DeviceOrientationEvent&&DeviceOrientationEvent.requestPermission&&await DeviceOrientationEvent.requestPermission()!=='granted')return;addEventListener('deviceorientation',e=>{if(e.gamma==null)return;const ay=Math.max(-18,Math.min(18,e.gamma*.6)),ax=Math.max(-14,Math.min(14,(e.beta-45)*.5)),s=$('scaler');tilt(ax,ay);s.style.setProperty('--gx',50+ay*2.5+'%');s.style.setProperty('--gy',50+ax*3+'%');s.style.setProperty('--go',1);s.style.setProperty('--ho',1)},{passive:true})}catch(e){}}
 $('icf').onchange=e=>{const fs=[...e.target.files];fs.forEach(f=>{const r=new FileReader();r.onload=()=>{const b=f.name.replace(/\.[^.]+$/,''),j=J.find(x=>x.a.toUpperCase()===b.toUpperCase()||x.n===b)||(fs.length===1?JM[S.job]:null);if(j){IC[j.a]=r.result;try{localStorage.setItem('ffico',JSON.stringify(IC))}catch(_){}render()}};r.readAsDataURL(f)})};
-syncLv();render();fit();tilt(0,0);play();loop();
+loadHash();syncLv();render();fit();tilt(0,0);play();loop();
 </script></body></html>
