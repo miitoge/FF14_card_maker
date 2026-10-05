@@ -1,18 +1,13 @@
-# FF14 自己紹介カードメーカー（更新版）
+ここに公式などのジョブアイコン画像を入れると、カードに自動で表示されます。
+ファイル名は「ジョブ略称.png」にしてください（半角・大文字）。
 
-公開フォルダは `docs/` です（GitHub Pages：Settings → Pages → Deploy from a branch → main / docs）。
+タンク    PLD WAR DRK GNB
+ヒーラー  WHM SCH AST SGE
+DPS       MNK DRG NIN SAM RPR VPR BST BRD MCH DNC BLM SMN RDM PCT BLU
+クラフター CRP BSM ARM GSM LTW WVR ALC CUL
+ギャザラー MIN BTN FSH
 
-## 更新のしかた
-1. このzipの `docs` フォルダの中身のうち **`index.html` `favicon.svg` `ogp.png`** を、リポジトリの `docs/` に上書きコピー
-2. 既存の `docs/config.js` はそのまま残す（上書きしない）
-3. GitHub Desktop で Commit → Push origin（1〜2分で反映）
-
-## ロドスト取り込み
-Cloudflare は不要になりました。標準では公開CORS中継サービス（allorigins / corsproxy.io）経由で取得します。
-- 中継サービスは第三者のもので、混雑や停止で失敗することがあります。その場合は「ジョブ」タブの貼り付け方式を使ってください。
-- 将来、自前の中継（Cloudflare等）を用意した場合は `docs/config.js` の `LODESTONE_API` にURLを書くと、そちらが優先されます（`worker/worker.js` は引き続き使えます）。
-
-## 追加機能
-- 動画（MP4/WebM）・GIF書き出し：ブラウザだけで作成（GIFは外部ライブラリ gifenc を jsDelivr から読み込み）
-- 共有リンク：入力内容をURLに入れます（SS画像は含まれません）
-- ファビコンとXのリンクカード（ogp.png）
+・正方形で64px以上を推奨（128pxあると鮮明です）
+・ない職業は入れなくてOK（その職業だけ内蔵アイコンになります）
+・画像の利用条件はスクウェア・エニックスの「素材利用許諾」に従ってください。
+  公開リポジトリに置くと、誰でも見られる形での公開になります。
